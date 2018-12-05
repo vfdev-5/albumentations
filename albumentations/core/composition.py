@@ -7,6 +7,7 @@ import numpy as np
 from albumentations.core.transforms_interface import DualTransform
 from albumentations.augmentations.bbox_utils import convert_bboxes_from_albumentations, \
     convert_bboxes_to_albumentations, filter_bboxes, check_bboxes
+from albumentations.core.utils import get_field_name
 
 __all__ = ['Compose', 'OneOf', 'OneOrOther']
 
@@ -55,7 +56,6 @@ class BaseCompose(object):
         if additional_targets:
             for t in self.transforms:
                 t.add_targets(additional_targets)
-
 
 class Compose(BaseCompose):
     """Compose transforms and handle all transformations regrading bounding boxes
@@ -108,6 +108,7 @@ class Compose(BaseCompose):
         self.min_area = bbox_params.get('min_area', 0.0)
         self.min_visibility = bbox_params.get('min_visibility', 0.0)
 
+        self.additional_targets = additional_targets
         self.add_targets(additional_targets)
 
     def __call__(self, **data):
@@ -117,7 +118,18 @@ class Compose(BaseCompose):
         if self.bbox_format is None:
             dual_start_end = None
 
-        if self.bbox_format and len(data.get('bboxes', [])) and len(data['bboxes'][0]) < 5:
+        image_field_name = get_field_name(data, self.additional_targets, 'image')
+        # mask_field_name = get_field_name(data, self.additional_targets, 'mask')
+        bboxes_field_name = get_field_name(data, self.additional_targets, 'bboxes')
+
+        if image_field_name is None:
+            raise Exception("Working without any image is not supported yet, please open Issue if you want "
+                            "this feature")
+
+        if (self.bbox_format and
+                bboxes_field_name is not None and
+                len(data[bboxes_field_name]) and
+                len(data[bboxes_field_name][0]) < 5):
             if not self.label_fields:
                 raise Exception("Please specify 'label_fields' in 'bbox_params' or add labels to the end of bbox "
                                 "because bboxes must have labels")
@@ -125,53 +137,53 @@ class Compose(BaseCompose):
             if not all(l in data.keys() for l in self.label_fields):
                 raise Exception("Your 'label_fields' are not valid - them must have same names as params in dict")
 
+        rows, cols = data[image_field_name].shape[:2]
         for idx, t in enumerate(transforms):
             if dual_start_end is not None and idx == dual_start_end[0]:
-                data = self.boxes_preprocessing(data)
+                data = self.boxes_preprocessing(data, bboxes_field_name, rows, cols)
 
             data = t(**data)
 
             if dual_start_end is not None and idx == dual_start_end[1]:
-                data = self.boxes_postprocessing(data)
+                data = self.boxes_postprocessing(data, bboxes_field_name, rows, cols)
 
         return data
 
-    def boxes_preprocessing(self, data):
-        if 'bboxes' not in data:
+    def boxes_preprocessing(self, data, bboxes_field_name, rows, cols):
+        if bboxes_field_name is None:
             raise Exception('Please name field with bounding boxes `bboxes`')
         if self.label_fields:
             for field in self.label_fields:
                 bboxes_with_added_field = []
-                for bbox, field_value in zip(data['bboxes'], data[field]):
+                for bbox, field_value in zip(data[bboxes_field_name], data[field]):
                     bboxes_with_added_field.append(list(bbox) + [field_value])
-                data['bboxes'] = bboxes_with_added_field
+                data[bboxes_field_name] = bboxes_with_added_field
 
-        rows, cols = data['image'].shape[:2]
         if self.bbox_format == 'albumentations':
-            check_bboxes(data['bboxes'])
+            check_bboxes(data[bboxes_field_name])
         else:
-            data['bboxes'] = convert_bboxes_to_albumentations(data['bboxes'], self.bbox_format, rows, cols,
-                                                              check_validity=True)
+            data[bboxes_field_name] = convert_bboxes_to_albumentations(data[bboxes_field_name], self.bbox_format,
+                                                                       rows, cols, check_validity=True)
 
         return data
 
-    def boxes_postprocessing(self, data):
-        rows, cols = data['image'].shape[:2]
-        data['bboxes'] = filter_bboxes(data['bboxes'], rows, cols, self.min_area, self.min_visibility)
+    def boxes_postprocessing(self, data, bboxes_field_name, rows, cols):
+        data[bboxes_field_name] = filter_bboxes(data[bboxes_field_name], rows, cols,
+                                                self.min_area, self.min_visibility)
 
         if self.bbox_format == 'albumentations':
-            check_bboxes(data['bboxes'])
+            check_bboxes(data[bboxes_field_name])
         else:
-            data['bboxes'] = convert_bboxes_from_albumentations(data['bboxes'], self.bbox_format, rows, cols,
-                                                                check_validity=True)
+            data[bboxes_field_name] = convert_bboxes_from_albumentations(data[bboxes_field_name], self.bbox_format,
+                                                                         rows, cols, check_validity=True)
 
         if self.label_fields:
             for idx, field in enumerate(self.label_fields):
                 field_values = []
-                for bbox in data['bboxes']:
+                for bbox in data[bboxes_field_name]:
                     field_values.append(bbox[4 + idx])
                 data[field] = field_values
-            data['bboxes'] = [bbox[:4] for bbox in data['bboxes']]
+            data[bboxes_field_name] = [bbox[:4] for bbox in data[bboxes_field_name]]
         return data
 
 
