@@ -131,10 +131,10 @@ def cutout(img, holes):
 
 
 @preserve_channel_dim
-def rotate(img, angle, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT_101):
+def rotate(img, angle, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT_101, value=None):
     height, width = img.shape[:2]
     matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1.0)
-    img = cv2.warpAffine(img, matrix, (width, height), flags=interpolation, borderMode=border_mode)
+    img = cv2.warpAffine(img, matrix, (width, height), flags=interpolation, borderMode=border_mode, borderValue=value)
     return img
 
 
@@ -153,13 +153,14 @@ def resize(img, height, width, interpolation=cv2.INTER_LINEAR):
 
 
 @preserve_channel_dim
-def shift_scale_rotate(img, angle, scale, dx, dy, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT_101):
+def shift_scale_rotate(img, angle, scale, dx, dy, interpolation=cv2.INTER_LINEAR,
+                       border_mode=cv2.BORDER_REFLECT_101, value=None):
     height, width = img.shape[:2]
     center = (width / 2, height / 2)
     matrix = cv2.getRotationMatrix2D(center, angle, scale)
     matrix[0, 2] += dx * width
     matrix[1, 2] += dy * height
-    img = cv2.warpAffine(img, matrix, (width, height), flags=interpolation, borderMode=border_mode)
+    img = cv2.warpAffine(img, matrix, (width, height), flags=interpolation, borderMode=border_mode, borderValue=value)
     return img
 
 
@@ -328,7 +329,7 @@ def clahe(img, clip_limit=2.0, tile_grid_size=(8, 8)):
 
 
 @preserve_channel_dim
-def pad(img, min_height, min_width, border_mode=cv2.BORDER_REFLECT_101, value=[0, 0, 0]):
+def pad(img, min_height, min_width, border_mode=cv2.BORDER_REFLECT_101, value=(0, 0, 0)):
     height, width = img.shape[:2]
 
     if height < min_height:
@@ -355,7 +356,7 @@ def pad(img, min_height, min_width, border_mode=cv2.BORDER_REFLECT_101, value=[0
 
 @preserve_channel_dim
 def pad_with_params(img, h_pad_top, h_pad_bottom, w_pad_left, w_pad_right, border_mode=cv2.BORDER_REFLECT_101,
-                    value=[0, 0, 0]):
+                    value=(0, 0, 0)):
     img = cv2.copyMakeBorder(img, h_pad_top, h_pad_bottom, w_pad_left, w_pad_right, border_mode, value=value)
     return img
 
@@ -670,7 +671,8 @@ def add_shadow(img, vertices_list):
 
 
 @preserve_shape
-def optical_distortion(img, k=0, dx=0, dy=0, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT_101):
+def optical_distortion(img, k=0, dx=0, dy=0, interpolation=cv2.INTER_LINEAR,
+                       border_mode=cv2.BORDER_REFLECT_101, value=None):
     """Barrel / pincushion distortion. Unconventional augment.
 
     Reference:
@@ -693,13 +695,13 @@ def optical_distortion(img, k=0, dx=0, dy=0, interpolation=cv2.INTER_LINEAR, bor
 
     distortion = np.array([k, k, 0, 0, 0], dtype=np.float32)
     map1, map2 = cv2.initUndistortRectifyMap(camera_matrix, distortion, None, None, (width, height), cv2.CV_32FC1)
-    img = cv2.remap(img, map1, map2, interpolation=interpolation, borderMode=border_mode)
+    img = cv2.remap(img, map1, map2, interpolation=interpolation, borderMode=border_mode, borderValue=value)
     return img
 
 
 @preserve_shape
 def grid_distortion(img, num_steps=10, xsteps=[], ysteps=[], interpolation=cv2.INTER_LINEAR,
-                    border_mode=cv2.BORDER_REFLECT_101):
+                    border_mode=cv2.BORDER_REFLECT_101, value=None):
     """
     Reference:
         http://pythology.blogspot.sg/2014/03/interpolation-on-regular-distorted-grid.html
@@ -739,13 +741,13 @@ def grid_distortion(img, num_steps=10, xsteps=[], ysteps=[], interpolation=cv2.I
     map_x, map_y = np.meshgrid(xx, yy)
     map_x = map_x.astype(np.float32)
     map_y = map_y.astype(np.float32)
-    img = cv2.remap(img, map_x, map_y, interpolation=interpolation, borderMode=border_mode)
+    img = cv2.remap(img, map_x, map_y, interpolation=interpolation, borderMode=border_mode, borderValue=value)
     return img
 
 
 @preserve_shape
 def elastic_transform(image, alpha, sigma, alpha_affine, interpolation=cv2.INTER_LINEAR,
-                      border_mode=cv2.BORDER_REFLECT_101, random_state=None, approximate=False):
+                      border_mode=cv2.BORDER_REFLECT_101, random_state=None, approximate=False, value=None):
     """Elastic deformation of images as described in [Simard2003]_ (with modifications).
     Based on https://gist.github.com/erniejunior/601cdf56d2b424757de5
 
@@ -771,7 +773,8 @@ def elastic_transform(image, alpha, sigma, alpha_affine, interpolation=cv2.INTER
     pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
     matrix = cv2.getAffineTransform(pts1, pts2)
 
-    image = cv2.warpAffine(image, matrix, (width, height), flags=interpolation, borderMode=border_mode)
+    image = cv2.warpAffine(image, matrix, (width, height), flags=interpolation,
+                           borderMode=border_mode, borderValue=value)
 
     if approximate:
         # Approximate computation smooth displacement map with a large enough kernel.
@@ -792,12 +795,12 @@ def elastic_transform(image, alpha, sigma, alpha_affine, interpolation=cv2.INTER
     mapx = np.float32(x + dx)
     mapy = np.float32(y + dy)
 
-    return cv2.remap(image, mapx, mapy, interpolation, borderMode=border_mode)
+    return cv2.remap(image, mapx, mapy, interpolation, borderMode=border_mode, borderValue=value)
 
 
 @preserve_shape
 def elastic_transform_approx(image, alpha, sigma, alpha_affine, interpolation=cv2.INTER_LINEAR,
-                             border_mode=cv2.BORDER_REFLECT_101, random_state=None):
+                             border_mode=cv2.BORDER_REFLECT_101, random_state=None, value=None):
     """Elastic deformation of images as described in [Simard2003]_ (with modifications for speed).
     Based on https://gist.github.com/erniejunior/601cdf56d2b424757de5
 
@@ -823,7 +826,8 @@ def elastic_transform_approx(image, alpha, sigma, alpha_affine, interpolation=cv
     pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
     matrix = cv2.getAffineTransform(pts1, pts2)
 
-    image = cv2.warpAffine(image, matrix, (width, height), flags=interpolation, borderMode=border_mode)
+    image = cv2.warpAffine(image, matrix, (width, height), flags=interpolation,
+                           borderMode=border_mode, borderValue=value)
 
     dx = (random_state.rand(height, width).astype(np.float32) * 2 - 1)
     cv2.GaussianBlur(dx, (17, 17), sigma, dst=dx)
@@ -838,7 +842,7 @@ def elastic_transform_approx(image, alpha, sigma, alpha_affine, interpolation=cv
     mapx = np.float32(x + dx)
     mapy = np.float32(y + dy)
 
-    return cv2.remap(image, mapx, mapy, interpolation, borderMode=border_mode)
+    return cv2.remap(image, mapx, mapy, interpolation, borderMode=border_mode, borderValue=value)
 
 
 def invert(img):

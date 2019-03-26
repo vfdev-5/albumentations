@@ -344,6 +344,7 @@ class Rotate(DualTransform):
         border_mode (OpenCV flag): flag that is used to specify the pixel extrapolation method. Should be one of:
             cv2.BORDER_CONSTANT, cv2.BORDER_REPLICATE, cv2.BORDER_REFLECT, cv2.BORDER_WRAP, cv2.BORDER_REFLECT_101.
             Default: cv2.BORDER_REFLECT_101
+        value (list of ints [r, g, b]): border value to set if border_mode is cv2.BORDER_CONSTANT
         p (float): probability of applying the transform. Default: 0.5.
 
     Targets:
@@ -353,15 +354,16 @@ class Rotate(DualTransform):
         uint8, float32
     """
 
-    def __init__(self, limit=90, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT_101,
+    def __init__(self, limit=90, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT_101, value=None,
                  always_apply=False, p=.5):
         super(Rotate, self).__init__(always_apply, p)
         self.limit = to_tuple(limit)
         self.interpolation = interpolation
         self.border_mode = border_mode
+        self.value = value
 
     def apply(self, img, angle=0, interpolation=cv2.INTER_LINEAR, **params):
-        return F.rotate(img, angle, interpolation, self.border_mode)
+        return F.rotate(img, angle, interpolation, self.border_mode, value=self.value)
 
     def get_params(self):
         return {'angle': random.uniform(self.limit[0], self.limit[1])}
@@ -427,6 +429,7 @@ class ShiftScaleRotate(DualTransform):
         border_mode (OpenCV flag): flag that is used to specify the pixel extrapolation method. Should be one of:
             cv2.BORDER_CONSTANT, cv2.BORDER_REPLICATE, cv2.BORDER_REFLECT, cv2.BORDER_WRAP, cv2.BORDER_REFLECT_101.
             Default: cv2.BORDER_REFLECT_101
+        value (list of ints [r, g, b]): border value to set if border_mode is cv2.BORDER_CONSTANT
         p (float): probability of applying the transform. Default: 0.5.
 
     Targets:
@@ -437,16 +440,17 @@ class ShiftScaleRotate(DualTransform):
     """
 
     def __init__(self, shift_limit=0.0625, scale_limit=0.1, rotate_limit=45, interpolation=cv2.INTER_LINEAR,
-                 border_mode=cv2.BORDER_REFLECT_101, always_apply=False, p=0.5):
+                 border_mode=cv2.BORDER_REFLECT_101, value=None, always_apply=False, p=0.5):
         super(ShiftScaleRotate, self).__init__(always_apply, p)
         self.shift_limit = to_tuple(shift_limit)
         self.scale_limit = to_tuple(scale_limit, bias=1.0)
         self.rotate_limit = to_tuple(rotate_limit)
         self.interpolation = interpolation
         self.border_mode = border_mode
+        self.value = value
 
     def apply(self, img, angle=0, scale=0, dx=0, dy=0, interpolation=cv2.INTER_LINEAR, **params):
-        return F.shift_scale_rotate(img, angle, scale, dx, dy, interpolation, self.border_mode)
+        return F.shift_scale_rotate(img, angle, scale, dx, dy, interpolation, self.border_mode, value=self.value)
 
     def apply_to_keypoint(self, keypoint, angle=0, scale=0, dx=0, dy=0, rows=0, cols=0, interpolation=cv2.INTER_LINEAR,
                           **params):
@@ -703,15 +707,16 @@ class OpticalDistortion(DualTransform):
     """
 
     def __init__(self, distort_limit=0.05, shift_limit=0.05, interpolation=cv2.INTER_LINEAR,
-                 border_mode=cv2.BORDER_REFLECT_101, always_apply=False, p=0.5):
+                 border_mode=cv2.BORDER_REFLECT_101, value=None, always_apply=False, p=0.5):
         super(OpticalDistortion, self).__init__(always_apply, p)
         self.shift_limit = to_tuple(shift_limit)
         self.distort_limit = to_tuple(distort_limit)
         self.interpolation = interpolation
         self.border_mode = border_mode
+        self.value = value
 
     def apply(self, img, k=0, dx=0, dy=0, interpolation=cv2.INTER_LINEAR, **params):
-        return F.optical_distortion(img, k, dx, dy, interpolation, self.border_mode)
+        return F.optical_distortion(img, k, dx, dy, interpolation, self.border_mode, value=self.value)
 
     def get_params(self):
         return {'k': random.uniform(self.distort_limit[0], self.distort_limit[1]),
@@ -729,15 +734,17 @@ class GridDistortion(DualTransform):
     """
 
     def __init__(self, num_steps=5, distort_limit=0.3, interpolation=cv2.INTER_LINEAR,
-                 border_mode=cv2.BORDER_REFLECT_101, always_apply=False, p=0.5):
+                 border_mode=cv2.BORDER_REFLECT_101, value=None, always_apply=False, p=0.5):
         super(GridDistortion, self).__init__(always_apply, p)
         self.num_steps = num_steps
         self.distort_limit = to_tuple(distort_limit)
         self.interpolation = interpolation
         self.border_mode = border_mode
+        self.value = value
 
     def apply(self, img, stepsx=[], stepsy=[], interpolation=cv2.INTER_LINEAR, **params):
-        return F.grid_distortion(img, self.num_steps, stepsx, stepsy, interpolation, self.border_mode)
+        return F.grid_distortion(img, self.num_steps, stepsx, stepsy, interpolation, self.border_mode,
+                                 value=self.value)
 
     def get_params(self):
         stepsx = [1 + random.uniform(self.distort_limit[0], self.distort_limit[1]) for i in
@@ -762,6 +769,7 @@ class ElasticTransform(DualTransform):
     Args:
         approximate (boolean): Whether to smooth displacement map with fixed kernel size.
                                Enabling this option gives ~2X speedup on large images.
+        value (list of ints [r, g, b]): border value to set if border_mode is cv2.BORDER_CONSTANT
 
     Targets:
         image, mask
@@ -771,7 +779,7 @@ class ElasticTransform(DualTransform):
     """
 
     def __init__(self, alpha=1, sigma=50, alpha_affine=50, interpolation=cv2.INTER_LINEAR,
-                 border_mode=cv2.BORDER_REFLECT_101, always_apply=False, approximate=False, p=0.5):
+                 border_mode=cv2.BORDER_REFLECT_101, value=None, always_apply=False, approximate=False, p=0.5):
         super(ElasticTransform, self).__init__(always_apply, p)
         self.alpha = alpha
         self.alpha_affine = alpha_affine
@@ -779,11 +787,12 @@ class ElasticTransform(DualTransform):
         self.interpolation = interpolation
         self.border_mode = border_mode
         self.approximate = approximate
+        self.value = value
 
     def apply(self, img, random_state=None, interpolation=cv2.INTER_LINEAR, **params):
         return F.elastic_transform(img, self.alpha, self.sigma, self.alpha_affine, interpolation,
                                    self.border_mode, np.random.RandomState(random_state),
-                                   self.approximate)
+                                   self.approximate, value=self.value)
 
     def get_params(self):
         return {'random_state': random.randint(0, 10000)}
